@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/MaggieShpileva/module18/static/css/main.5974c0f8.css",
+    "main.js": "/MaggieShpileva/module18/static/js/main.cee83cba.js",
+    "static/js/453.dac6f0e7.chunk.js": "/MaggieShpileva/module18/static/js/453.dac6f0e7.chunk.js",
+    "index.html": "/MaggieShpileva/module18/index.html",
+    "main.5974c0f8.css.map": "/MaggieShpileva/module18/static/css/main.5974c0f8.css.map",
+    "main.cee83cba.js.map": "/MaggieShpileva/module18/static/js/main.cee83cba.js.map",
+    "453.dac6f0e7.chunk.js.map": "/MaggieShpileva/module18/static/js/453.dac6f0e7.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.5974c0f8.css",
+    "static/js/main.cee83cba.js"
+  ]
+}
