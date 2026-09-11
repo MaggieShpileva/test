@@ -1,0 +1,38 @@
+---
+description: "Docs and Cursor rules authoring conventions"
+globs: "**/*.md"
+alwaysApply: false
+---
+
+# Documentation
+
+## Do
+
+- Create or edit `.md` / README / skills only when the user asks, or when the task explicitly includes docs.
+- Write `.cursor/` docs (rules, skills) in English.
+- Use a short H1, then H2/H3 without skipped levels.
+- Prefer short Must lists and tables over long prose.
+- Fence code with a language tag (`ts`, `tsx`, `scss`).
+- Link skills/rules with relative paths when useful.
+
+## Cursor rules (`.mdc`)
+
+- Keep one concern per file; aim for 50-80 lines of body.
+- Set frontmatter `description` plus `globs` and/or `alwaysApply`.
+- Prefer good/bad examples over abstract wording.
+- Point to a skill for depth; keep the rule as Must only.
+
+## Avoid
+
+- Do not generate project overviews or tutorial markdown unprompted.
+- Do not paste secrets, tokens, or `.env` values into docs.
+
+## Example frontmatter
+
+```yaml
+---
+description: "Noun phrase describing the rule"
+globs: project/src/**/*.ts
+alwaysApply: false
+---
+```

@@ -1,0 +1,46 @@
+---
+description: "Russian replies, discover-first workflow, Feature/UI layers, imports, assets"
+alwaysApply: true
+---
+
+# General
+
+## Language
+
+- Reply to the user in Russian.
+
+```text
+User asks in Russian -> answer in Russian
+Code / commits / identifiers -> English
+```
+
+- Write code, identifiers, and commit messages in English (skill `git-workflow`).
+- Keep product UI copy from the mock or existing strings; do not invent copy.
+
+## Discover
+
+- Inspect the repo first (paths, tokens, `--ui-scale`, UI primitives, api/store).
+- Follow existing repo patterns; do not paste skill templates as-is.
+- Use skills: `project-conventions`, `react-feature-ui`, `react-components`, `coding-standards`, `data-layer`, `ui-motion`, `linting-formatting`, `git-workflow`.
+- For Figma work use `figma-rules.mdc` and skill `figma-to-code`.
+
+## Do
+
+- Put screens and domain UI in Feature; put reusable primitives in UI; keep `pages/` as thin mounts.
+- Structure each page like a component folder: `pages/Name/Name.tsx` + optional `Name.module.scss` + `index.ts` (no flat `pages/Name.tsx`).
+- Reuse an existing UI primitive via `variant` / `className` before creating a new one.
+- Prefer `type` over `interface` for props and DTOs.
+- Import internal modules via path aliases; use relative imports only for sibling files.
+- Store bundler assets under `project/src/assets/` (kebab-case); raster as `.webp` (`WEBP_`); SVG as `SVG_`. From Figma: download MCP assets and convert raster to webp.
+- Call APIs from Feature/store/loaders per `api.mdc` and skill `data-layer`; do not fetch inside UI primitives.
+- Change only what the task needs; do not add markdown docs unless asked.
+
+## Scoped rules
+
+| File | When |
+|------|------|
+| `naming.mdc` | `project/src/**/*.ts` |
+| `components.mdc` | `project/src/**/*.tsx` |
+| `errors.mdc` | `project/src/**/*.ts` |
+| `api.mdc` | `project/src/api/**/*.ts` |
+| `markdown.mdc` | `**/*.md` |

@@ -62,6 +62,15 @@ $breakpoint-xl: 1920px;
   }
 }
 
+/// Размер по --ui-scale; с desktop-xs — по --ui-desktop-scale
+@mixin scaled($property, $value) {
+  #{$property}: calc(#{$value} * var(--ui-scale));
+
+  @include desktop-xs {
+    #{$property}: calc(#{$value} * var(--ui-desktop-scale));
+  }
+}
+
 @mixin desktop($width: $breakpoint-lg) {
   @media (min-width: $width) {
     @content;

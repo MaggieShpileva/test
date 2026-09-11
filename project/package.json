@@ -13,12 +13,19 @@
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
     "prepare": "cd .. && husky install .husky",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "rules:review": "python3 .cursor/hooks/rules-review.py"
   },
   "dependencies": {
+    "@reduxjs/toolkit": "^2.12.0",
+    "axios": "^1.20.0",
     "clsx": "^2.1.1",
+    "components-funtech-ui": "^1.0.3",
+    "cursor-package-funtech": "^1.0.5",
+    "framer-motion": "^13.2.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
+    "react-redux": "^9.3.0",
     "react-router-dom": "^7.9.6"
   },
   "devDependencies": {

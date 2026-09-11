@@ -1,0 +1,37 @@
+---
+description: "File and symbol naming for modules, hooks, and utils"
+globs: project/src/**/*.ts
+alwaysApply: false
+---
+
+# Naming
+
+| Kind | Style | Example |
+|------|--------|---------|
+| Component folders / files | PascalCase | `UserProfile.tsx`, `CardTasks/` |
+| Hooks | `use` + PascalCase | `usePlatformAuth.ts` |
+| Utils | camelCase | `loadImage.ts` |
+| Variables / functions | camelCase | `fetchTasksList` |
+| Constants | UPPER_SNAKE_CASE | `API_BASE` |
+
+## File layout
+
+Same folder triple for **UI**, **Feature**, and **pages**:
+
+```
+Name/
+  Name.tsx
+  Name.module.scss   # optional (omit if no styles)
+  index.ts
+  components/        # nested blocks only — Child/Child.tsx + module + index.ts
+  utils/
+  hooks/
+```
+
+- Nested Feature/UI (incl. Figma sections): `Name/components/<Child>/`, not flat `Name/Child.tsx`.
+
+- Pages: `src/pages/Name/` — not flat `src/pages/Name.tsx`.
+- Put shared utils in `src/utils/` (`@utils/*`).
+- Put domain API modules in `src/api/<domain>.ts`.
+- Prefer named exports for components.
+- Prefer path aliases over deep relative imports (`../../../`).

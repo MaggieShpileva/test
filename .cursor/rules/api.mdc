@@ -1,0 +1,37 @@
+---
+description: "API modules with ENDPOINTS, apiClient, and domain types"
+globs: project/src/api/**/*.ts
+alwaysApply: false
+---
+
+# API
+
+Skill: `data-layer`. Stack: axios `apiClient`, central `ENDPOINTS`, RTK thunks/slices.
+
+## Do
+
+- Declare paths in `endpoints.ts` (`ENDPOINTS`), not as string literals in components or slices.
+- Call HTTP through `apiClient` from `axios.ts` (shared interceptors and auth).
+- Reuse the existing `apiClient` instance instead of creating another axios client.
+- Group domain methods next to neighbors (`tasksApi`, `userApi`):
+
+```ts
+export const tasksApi = {
+  getList: () => apiClient.get<TasksListResponse>(ENDPOINTS.tasks.list),
+  claim: (id: string) =>
+    apiClient.patch<TaskClaimResult>(ENDPOINTS.tasks.claim(id)),
+};
+```
+
+- Keep response/body types under `types/` and import them with `import type`.
+- Re-export from `index.ts` when neighboring domains do.
+- Invoke API from store thunks, loaders, or Feature orchestration instead of UI primitives.
+- Add a new endpoint in this order: `ENDPOINTS` -> api method -> thunk/loader.
+
+## Checklist
+
+- [ ] Path lives in `ENDPOINTS`
+- [ ] Method uses `apiClient` in `<domain>.ts`
+- [ ] Types live in `types/`
+- [ ] Errors follow `errors.mdc`
+- [ ] Feature/store/loader owns the call; UI primitives only render

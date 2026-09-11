@@ -1,0 +1,31 @@
+---
+description: "Figma to code workflow with MCP design context and repo tokens"
+alwaysApply: true
+---
+
+# Figma to code
+
+Follow `general.mdc` / `components.mdc` for layers, 70-line limit, utils, alt, a11y, motion.
+Use skill `figma-to-code` and files under `.cursor/skills/figma-to-code/references/`.
+
+## Do
+
+- Call `get_design_context` with the node id before writing code.
+- Treat MCP output (often React + Tailwind) as a reference, not final code.
+- Map Auto Layout parents to flex/gap/padding; do not copy absolute `left`/`top` or Tailwind as-is.
+- Reuse fonts and tokens from the repo after discover; do not default to Inter or MCP hex values.
+- Map Figma library instances to existing UI primitives; do not invent primitives for pixel chasing.
+- Download MCP asset URLs into the repo; do not hand-draw icon paths or hotlink Figma/MCP URLs.
+- Raster from Figma (png/jpg/jpeg/gif): convert to `.webp`, save under `src/assets/images/` (kebab-case), import with `WEBP_` prefix. Keep SVG as `.svg` with `SVG_`.
+- Implement large screens section by section; validate with screenshot vs UI (`validate-against-figma`).
+- Keep Figma-driven components within the 70-line `*.tsx` limit from `components.mdc`.
+- Nested blocks from a Figma screen live under the parent’s `components/<Child>/` with the same folder triple (`Child.tsx` + optional `Child.module.scss` + `index.ts`). Do **not** put sibling `Header.tsx` / `Item.tsx` flat next to the parent, and do **not** invent alternate nest paths.
+
+## Example flow
+
+```text
+1. get_design_context(nodeId)
+2. discover UI/tokens/scale in repo
+3. Feature/Task/ + Task/components/<Child>/ for sections
+4. compare screenshot to UI and adjust
+```

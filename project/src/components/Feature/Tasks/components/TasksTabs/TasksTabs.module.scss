@@ -1,0 +1,43 @@
+@use '@styles/index.scss' as *;
+
+.root {
+  --sc-padding: 0;
+  --sc-radius: 100px;
+  --sc-bg: #{$bg-muted};
+  --sc-shadow: none;
+  --sc-indicator-bg: #{$accent-lime};
+  --sc-indicator-radius: 100px;
+  --sc-font-size: calc(14px * var(--ui-scale));
+  --sc-line-height: 1;
+  --sc-button-padding: 0;
+  --sc-active-color: #000;
+  --sc-inactive-color: #{$text-muted};
+  --sc-active-weight: 500;
+  --sc-inactive-weight: 500;
+
+  width: 100%;
+  font-family: $font-family-medium;
+
+  @include scaled(height, 36px);
+
+  @include desktop-xs {
+    --sc-font-size: calc(14px * var(--ui-desktop-scale));
+  }
+}
+
+.indicator {
+  height: 100%;
+  top: 0;
+  transform: none;
+}
+
+.button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.buttonActive,
+.buttonInactive {
+  font-family: $font-family-medium;
+}

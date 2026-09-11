@@ -1,0 +1,46 @@
+---
+description: "Error handling for RTK thunks, loaders, and UI status"
+globs: project/src/**/*.ts
+alwaysApply: false
+---
+
+# Errors
+
+## Do
+
+- Never leave an empty `catch` without a reason.
+- For intentional ignore (image preload), use a local `.catch(() => undefined)` on that call only.
+- In RTK async thunks use `try/catch` and return `rejectWithValue(...)`.
+- Log failures with `console.error` and a domain prefix such as `[Tasks]`.
+- Pass a clear fallback string for UI when `error` is not an `Error` (Russian copy for product UI is fine).
+- Type thunks with `{ rejectValue: string }` (or the repo equivalent).
+- Surface errors in UI via existing status/`failed`/early-return/Error boundary patterns.
+- In loaders, propagate required-data failures like neighboring loaders; soft-fail only optional preloads.
+- Normalize with `error instanceof Error ? error.message : 'fallback'`; do not invent a second error framework.
+
+## Good
+
+```ts
+try {
+  const res = await tasksApi.getList();
+  return res.data;
+} catch (error) {
+  console.error('[Tasks] List fetch failed:', error);
+  return rejectWithValue(
+    error instanceof Error ? error.message : 'Failed to load tasks'
+  );
+}
+```
+
+## Bad
+
+```ts
+try {
+  await tasksApi.getList();
+} catch (e) {}
+```
+
+## Boundaries
+
+- Handle domain network errors in api/thunk/loader, not inside UI primitives.
+- Keep user-facing messages stable; put details in `console.error`.

@@ -1,0 +1,133 @@
+@use '@styles/index.scss' as *;
+
+.root {
+  position: fixed;
+  z-index: 200;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  inset: 0;
+}
+
+.backdrop {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(6px);
+  inset: 0;
+}
+
+.content {
+  width: 100%;
+  max-width: calc(375px * var(--ui-scale));
+  min-height: 100%;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+
+  @include scaled(padding, 173px 20px 40px);
+
+  @include desktop-xs {
+    max-width: calc(375px * var(--ui-desktop-scale));
+  }
+}
+
+.visuals {
+  position: relative;
+  flex-shrink: 0;
+
+  @include scaled(width, 264px);
+  @include scaled(height, 216px);
+}
+
+.check {
+  position: absolute;
+  top: 0;
+  left: 0;
+  filter: drop-shadow(0 6px 24px rgba(0, 0, 0, 0.1));
+  object-fit: contain;
+
+  @include scaled(width, 159px);
+  @include scaled(height, 156px);
+}
+
+.coin {
+  position: absolute;
+  top: calc(16px * var(--ui-scale));
+  right: 0;
+  object-fit: contain;
+
+  @include scaled(width, 200px);
+  @include scaled(height, 200px);
+
+  @include desktop-xs {
+    top: calc(16px * var(--ui-desktop-scale));
+  }
+}
+
+.amount {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #fff;
+  text-align: center;
+  font-family: $font-family-medium;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+
+  @include scaled(margin-top, 32px);
+}
+
+.amountValue {
+  line-height: 1.2;
+
+  @include scaled(font-size, 64px);
+}
+
+.amountLabel {
+  line-height: 1.2;
+
+  @include scaled(font-size, 32px);
+}
+
+.cta {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 0;
+  border-radius: calc(8px * var(--ui-scale));
+  background: $accent-lime;
+  color: #000;
+  line-height: normal;
+  cursor: pointer;
+  font-family: $font-family-medium;
+  letter-spacing: 0.105em;
+  text-transform: uppercase;
+
+  @include scaled(max-width, 335px);
+  @include scaled(height, 50px);
+  @include scaled(margin-top, 48px);
+  @include scaled(font-size, 11px);
+
+  @include desktop-xs {
+    border-radius: calc(8px * var(--ui-desktop-scale));
+  }
+}
+
+.note {
+  margin: 0;
+  margin-top: auto;
+  color: #fff;
+  line-height: 1.2;
+  text-align: center;
+  font-family: $font-family-medium;
+  letter-spacing: 0.02em;
+
+  @include scaled(max-width, 286px);
+  @include scaled(padding-bottom, 24px);
+  @include scaled(font-size, 12px);
+}

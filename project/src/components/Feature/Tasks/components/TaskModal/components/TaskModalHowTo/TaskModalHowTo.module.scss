@@ -1,0 +1,90 @@
+@use '@styles/index.scss' as *;
+
+.root {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: calc(16px * var(--ui-scale));
+
+  @include desktop-xs {
+    gap: calc(16px * var(--ui-desktop-scale));
+  }
+}
+
+.title {
+  margin: 0;
+  color: #000;
+  line-height: 1.2;
+  font-family: $font-family-medium;
+  font-weight: $font-weight-medium;
+
+  @include scaled(font-size, 16px);
+}
+
+.list {
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(16px * var(--ui-scale));
+  list-style: none;
+
+  @include desktop-xs {
+    gap: calc(16px * var(--ui-desktop-scale));
+  }
+}
+
+.item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: calc(8px * var(--ui-scale));
+
+  @include desktop-xs {
+    gap: calc(8px * var(--ui-desktop-scale));
+  }
+
+  &:not(:last-child)::before {
+    width: 0;
+    height: calc(100% + 16px * var(--ui-scale) - 24px * var(--ui-scale));
+    position: absolute;
+    top: calc(24px * var(--ui-scale));
+    left: calc(11.5px * var(--ui-scale));
+    border-left: 1px dashed $accent-lime;
+    content: '';
+
+    @include desktop-xs {
+      height: calc(
+        100% + 16px * var(--ui-desktop-scale) - 24px * var(--ui-desktop-scale)
+      );
+      top: calc(24px * var(--ui-desktop-scale));
+      left: calc(11.5px * var(--ui-desktop-scale));
+    }
+  }
+}
+
+.number {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 500px;
+  background: $accent-lime;
+  color: #000;
+  line-height: 1;
+  flex-shrink: 0;
+  font-family: $font-family-medium;
+
+  @include scaled(width, 24px);
+  @include scaled(height, 24px);
+  @include scaled(font-size, 14px);
+}
+
+.text {
+  margin: 0;
+  color: #000;
+  line-height: 1.2;
+  font-family: $font-family-regular;
+
+  @include scaled(padding-top, 2px);
+  @include scaled(font-size, 16px);
+}

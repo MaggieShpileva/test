@@ -1,0 +1,33 @@
+---
+description: "React FC components, a11y, file size limit, useEffect extraction"
+globs: project/src/**/*.tsx
+alwaysApply: false
+---
+
+# Components
+
+Skills: `react-components`, `react-feature-ui`, `coding-standards`, `ui-motion`.
+
+## Do
+
+- Export components as `export const Name: FC<NameProps>` (named export).
+- Use the folder triple for UI, Feature, and pages: `Name/Name.tsx` + optional `Name.module.scss` + `index.ts`.
+- Keep each component `*.tsx` at most 70 lines; split into `Name/components/<Child>/` with its own folder trio (never flat siblings like `Name/Child.tsx`).
+- Extract component logic longer than 10 lines (state clusters, handlers, derived state) into custom hooks under `hooks/` or `Name/hooks/` (`useThing.ts`); keep the component as thin orchestration + JSX.
+- Move `useEffect` callbacks longer than 10 lines into `Name/utils/` or `@utils/*` (or a custom hook if React state/lifecycle is needed); keep effects as thin orchestration.
+- Give every `<img>` a non-empty meaningful `alt`.
+- Use semantic tags; make interactivity a `button`, `a`, or native control instead of `div`/`span` + `onClick`.
+- Give icon-only buttons an accessible name.
+- Keep card containers non-clickable; stretch an inner `a`/`button` for the hit area.
+- Prefer existing Modal/motion patterns, then CSS, then the repo animation package (`ui-motion`).
+- Add `memo` / `useMemo` / `useCallback` only when neighbors already do or when profiling requires it.
+
+## Body order
+
+1. hooks
+2. derived values
+3. handlers
+4. early returns
+5. JSX
+
+For props typing, CSS Modules, clsx, and scale tokens follow skill `coding-standards`.

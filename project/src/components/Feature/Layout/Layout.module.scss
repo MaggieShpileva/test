@@ -9,9 +9,8 @@
 }
 
 .main {
-  padding: $spacing-xl;
+  width: 100%;
   display: flex;
   flex: 1;
-  justify-content: center;
-  place-items: center;
+  flex-direction: column;
 }

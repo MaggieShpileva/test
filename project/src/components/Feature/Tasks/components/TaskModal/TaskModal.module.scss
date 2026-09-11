@@ -1,0 +1,181 @@
+@use '@styles/index.scss' as *;
+
+.root {
+  --bottom-modal-backdrop: rgba(0, 0, 0, 0.7);
+  --bottom-modal-sheet-bg: #fff;
+  --bottom-modal-content-bg: #fff;
+  --bottom-modal-radius: calc(20px * var(--ui-scale));
+  --bottom-modal-max-width: calc(375px * var(--ui-scale));
+  --bottom-modal-max-height: 90dvh;
+  --bottom-modal-handle-color: rgba(0, 0, 0, 0.1);
+
+  @include desktop-xs {
+    --bottom-modal-radius: calc(20px * var(--ui-desktop-scale));
+    --bottom-modal-max-width: calc(375px * var(--ui-desktop-scale));
+  }
+}
+
+.backdrop {
+  backdrop-filter: blur(4px);
+}
+
+.sheet {
+  background: #fff;
+}
+
+.handle {
+  margin-top: calc(8px * var(--ui-scale));
+  background: rgba(0, 0, 0, 0.1);
+
+  @include scaled(width, 60px);
+  @include scaled(height, 4px);
+
+  @include desktop-xs {
+    margin-top: calc(8px * var(--ui-desktop-scale));
+  }
+}
+
+.content {
+  background: #fff;
+
+  @include scaled(padding, 8px 20px 40px);
+}
+
+.body {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: calc(24px * var(--ui-scale));
+
+  @include desktop-xs {
+    gap: calc(24px * var(--ui-desktop-scale));
+  }
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(8px * var(--ui-scale));
+
+  @include scaled(padding-inline, 4px);
+
+  @include desktop-xs {
+    gap: calc(8px * var(--ui-desktop-scale));
+  }
+}
+
+.tag {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 100px;
+  color: #000;
+  line-height: 1;
+  font-family: $font-family-medium;
+  white-space: nowrap;
+
+  @include scaled(height, 20px);
+  @include scaled(padding-inline, 12px);
+  @include scaled(font-size, 12px);
+}
+
+.tagPrimary {
+  background: $accent-lime;
+}
+
+.tagSecondary {
+  background: rgba(219, 255, 0, 0.4);
+}
+
+.title {
+  margin: 0;
+  color: #000;
+  line-height: 1.1;
+  font-family: $font-family-medium;
+  font-weight: $font-weight-medium;
+
+  @include scaled(padding-inline, 4px);
+  @include scaled(font-size, 24px);
+}
+
+.reward {
+  display: flex;
+  flex-direction: column;
+  gap: calc(4px * var(--ui-scale));
+
+  @include scaled(padding-inline, 4px);
+
+  @include desktop-xs {
+    gap: calc(4px * var(--ui-desktop-scale));
+  }
+}
+
+.rewardTop {
+  display: flex;
+  align-items: center;
+  gap: calc(6px * var(--ui-scale));
+
+  @include desktop-xs {
+    gap: calc(6px * var(--ui-desktop-scale));
+  }
+}
+
+.rewardIcon {
+  flex-shrink: 0;
+  object-fit: cover;
+
+  @include scaled(width, 36px);
+  @include scaled(height, 36px);
+}
+
+.rewardValue {
+  margin: 0;
+  color: #000;
+  line-height: 1;
+  font-family: $font-family-medium;
+
+  @include scaled(font-size, 48px);
+}
+
+.rewardCaption {
+  margin: 0;
+  color: #000;
+  line-height: 1.2;
+  font-family: $font-family-regular;
+
+  @include scaled(font-size, 16px);
+}
+
+.note {
+  margin: 0;
+  color: #000;
+  line-height: 1.2;
+  font-family: $font-family-regular;
+
+  @include scaled(padding-inline, 4px);
+  @include scaled(font-size, 16px);
+}
+
+.cta {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 0;
+  border-radius: calc(8px * var(--ui-scale));
+  background: #000;
+  color: #fff;
+  line-height: normal;
+  cursor: pointer;
+  font-family: $font-family-medium;
+  letter-spacing: 0.105em;
+  text-transform: uppercase;
+
+  @include scaled(height, 50px);
+  @include scaled(padding-inline, 20px);
+  @include scaled(font-size, 11px);
+
+  @include desktop-xs {
+    border-radius: calc(8px * var(--ui-desktop-scale));
+  }
+}

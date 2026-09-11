@@ -1,0 +1,38 @@
+@use '@styles/index.scss' as *;
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(4px * var(--ui-scale));
+  border: 1px solid #fff;
+  border-radius: calc(26px * var(--ui-scale));
+  background: #fff;
+  padding-block: calc(4px * var(--ui-scale));
+
+  @include scaled(height, 32px);
+  @include scaled(padding-inline, 20px);
+
+  @include desktop-xs {
+    gap: calc(4px * var(--ui-desktop-scale));
+    border-radius: calc(26px * var(--ui-desktop-scale));
+    padding-block: calc(4px * var(--ui-desktop-scale));
+  }
+}
+
+.icon {
+  flex-shrink: 0;
+
+  @include scaled(width, 12px);
+  @include scaled(height, 12px);
+}
+
+.label {
+  color: #000;
+  line-height: normal;
+  font-family: $font-family-medium;
+  letter-spacing: 0.105em;
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  @include scaled(font-size, 11px);
+}

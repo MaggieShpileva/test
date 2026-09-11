@@ -1,0 +1,76 @@
+@use '@styles/index.scss' as *;
+
+.root {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: calc(4px * var(--ui-scale));
+
+  @include scaled(padding-block, 4px);
+
+  @include desktop-xs {
+    gap: calc(4px * var(--ui-desktop-scale));
+  }
+}
+
+.main {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: calc(4px * var(--ui-scale));
+
+  @include desktop-xs {
+    gap: calc(4px * var(--ui-desktop-scale));
+  }
+}
+
+.title {
+  color: #000;
+  line-height: 1;
+  font-family: $font-family-medium;
+
+  @include scaled(font-size, 14px);
+}
+
+.meta {
+  color: $text-muted;
+  line-height: 1;
+  font-family: $font-family-regular;
+
+  @include scaled(font-size, 11px);
+}
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: calc(4px * var(--ui-scale));
+  flex-shrink: 0;
+
+  @include desktop-xs {
+    gap: calc(4px * var(--ui-desktop-scale));
+  }
+}
+
+.amount {
+  display: flex;
+  align-items: center;
+  gap: calc(2px * var(--ui-scale));
+  color: #000;
+  line-height: 1;
+  font-family: $font-family-medium;
+
+  @include scaled(font-size, 14px);
+
+  @include desktop-xs {
+    gap: calc(2px * var(--ui-desktop-scale));
+  }
+}
+
+.icon {
+  object-fit: cover;
+
+  @include scaled(width, 14px);
+  @include scaled(height, 14px);
+}
