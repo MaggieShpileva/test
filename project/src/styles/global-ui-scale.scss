@@ -1,0 +1,9 @@
+@use './index.scss' as *;
+
+:root {
+  --ui-scale: 1;
+  --ui-desktop-scale: 1;
+
+  @include dynit(--ui-scale, 1, 1.2375, 375, 768, $unit: '');
+  @include dynit(--ui-desktop-scale, 1, 2.7142, 1024, 3840, $unit: '');
+}

@@ -1,0 +1,925 @@
+openapi: 3.0.3
+info:
+  x-bz-sync: |
+    Июль 2026: вкладки Активные/Награды; completed после active_to до claim;
+    credited исчезает из активных; Этап 2 — promo rewards + traditions per location.
+    Источник: TD/(INT) ЗЯ __ Драфт БЗ (+ доп работы).docx.md
+  title: ЗЯ «Наша коллекция» — API (R1 + R2)
+  version: "3.0.0"
+  description: >
+    Публичный API «Золотое Яблоко: Наша коллекция». Источник схемы БД — утверждённая ERD
+    [`erdGA-release-2.drawio (2).xml`](erdGA-release-2.drawio%20(2).xml) и
+    [`Описание полей БД (релиз 2)(из гугл диск).md`](Описание%20полей%20БД%20(релиз%202)(из%20гугл%20диск).md).
+    R2 задания: `tasks`, `task_relations`, `user_tasks`, `prizes`, `bonus_transactions`
+    (контракт заданий ещё уточняется — схемы ниже ориентир).
+    Статусы `user_tasks.status`: `available` → `completed` → `credited` (+ `in_progress` у группы).
+    `GET /tasks` = вкладка «Активные» (без `credited`; `completed` видно после `active_to` до claim).
+    `GET /bonuses/history` = вкладка «Награды».
+    Auto (`order`, `condition`) — проверка при GET /tasks; claim — PATCH /tasks/{id}/claim.
+    Check (`codeword`) — POST /tasks/{id}/check (RuleEngine с подставленным input). Начисление: оптимистичный UX (credited сразу), доставка set-bonus через Redis job.
+    `tasks.conditions` не отдаётся клиенту. Префикс `/api`; игровое ядро `/v1/*`; задания `/tasks*`.
+    Auth: opaque Bearer token в Redis (api-service, TTL 7 дней). Ответ логина — поле `token`
+    (не `access_token`). Admin: Django Admin, не этот контракт.
+    БЗ (июль 2026): 15 блоков, Этап 2 — promo rewards, традиции на локации, покупки.
+
+servers:
+  - url: /api
+    description: через gateway (один origin, один токен)
+
+tags:
+  - name: Auth
+  - name: Onboarding (R1)
+  - name: Onboarding (R2)
+  - name: Regions
+  - name: Locations
+  - name: Products
+  - name: UserActions
+  - name: Tasks (R2)
+  - name: Bonuses (R2)
+  - name: Health
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness probe (Kubernetes)
+      security: []
+      responses:
+        "200":
+          description: Сервис жив
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe — проверка PostgreSQL, Redis
+      security: []
+      responses:
+        "200":
+          description: Готов принимать трафик
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ready }
+        "503":
+          description: Зависимость недоступна
+
+  /v1/user/access-token:
+    post:
+      tags: [Auth]
+      summary: Логин по номеру телефона, выпуск токена
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone_number: { type: integer, example: 79991234567 }
+              required: [phone_number]
+      responses:
+        "200":
+          description: Токен доступа
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string, example: "550e8400|abcdef..." }
+
+
+
+  /v1/onboarding/status:
+    get:
+      tags: [Onboarding (R1)]
+      summary: "(R1, legacy) Статус онбординга"
+      deprecated: true
+      responses:
+        "200": { description: Статус }
+  /v1/onboarding/complete:
+    patch:
+      tags: [Onboarding (R1)]
+      summary: "(R1, legacy) Завершить онбординг"
+      deprecated: true
+      responses:
+        "200": { description: OK }
+
+  /v1/onboardings:
+    get:
+      tags: [Onboarding (R2)]
+      summary: "(R2) Непросмотренные карточки онбординга/анонса для текущего юзера"
+      responses:
+        "200":
+          description: Список карточек на показ
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OnboardingCard" }
+  /v1/onboardings/{id}/view:
+    patch:
+      tags: [Onboarding (R2)]
+      summary: "(R2) Отметить карточку просмотренной (UPSERT)"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Зафиксировано }
+
+  /v1/regions:
+    get:
+      tags: [Regions]
+      summary: "Список стран. (R2) с агрегированным прогрессом и разбивкой по локациям"
+      responses:
+        "200":
+          description: Страны с прогрессом
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Region" }
+  /v1/regions/{region_id}:
+    get:
+      tags: [Regions]
+      summary: Данные страны
+      parameters:
+        - { name: region_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Страна
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Region" }
+  /v1/regions/{region_id}/traditions:
+    get:
+      tags: [Regions]
+      summary: "(этап 1) Традиции страны — через первую локацию региона"
+      description: >
+        `tradition_cards` привязаны к локации (`game_location_id`), не к региону.
+        На этапе 1: берём первую локацию региона (`game_locations.order_index` ASC)
+        и отдаём её карточки традиций (+ продукты). Прямой роут —
+        `GET /v1/locations/{location_id}/traditions`.
+      parameters:
+        - { name: region_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Карточки традиций первой локации региона
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TraditionDetail" }
+        "404": { description: Регион не найден или у региона нет локаций }
+
+  /v1/regions/{region_id}/locations:
+    get:
+      tags: [Locations]
+      summary: "(R2) Список локаций страны с прогрессом, порядком и completed"
+      parameters:
+        - { name: region_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Локации страны
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LocationCard" }
+
+  /v1/locations/{location_id}:
+    get:
+      tags: [Locations]
+      summary: "(R2) Игровая локация + объекты/продукты (в т.ч. вместо /regions/{id}/result)"
+      description: >
+        Отдаёт сцену и целевые объекты локации всегда, в т.ч. при `completed=true`.
+        Бэкенд не режет мутации через отдельный `is_read_only` —
+        фронт сам блокирует изменения, если `completed=true`.
+        Список продуктов финального экрана берётся отсюда;
+        отдельный `/regions/{id}/result` не используется.
+      parameters:
+        - { name: location_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Сцена локации с объектами/продуктами
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GameLocationResource" }
+        "404": { description: Локация не найдена }
+
+  /v1/locations/{location_id}/traditions:
+    get:
+      tags: [Locations]
+      summary: "(R2) Карточки «Традиции и ритуалы» локации"
+      description: >
+        Прямая выборка `tradition_cards` по `game_location_id` (+ связанные `target_products`).
+        Канонический роут; региональный `/v1/regions/{region_id}/traditions` —
+        shortcut этапа 1 через первую локацию.
+      parameters:
+        - { name: location_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Карточки традиций локации с продуктами
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TraditionDetail" }
+        "404": { description: Локация не найдена }
+  /v1/locations/{location_id}/start:
+    patch:
+      tags: [Locations]
+      summary: "(R2) Начать прохождение локации"
+      parameters:
+        - { name: location_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "409": { description: Локация уже пройдена (режим просмотра, старт запрещён) }
+  /v1/locations/{location_id}/hint:
+    patch:
+      tags: [Locations]
+      summary: "(R2) Использовать подсказку"
+      parameters:
+        - { name: location_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "409": { description: Локация уже пройдена (подсказки недоступны) }
+  /v1/locations/{location_id}/object/{game_object_id}/found:
+    post:
+      tags: [Locations]
+      summary: "(R2) Зафиксировать найденный объект"
+      parameters:
+        - { name: location_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: game_object_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Прогресс обновлён (`user_game_locations` + `region_progresses`)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  progress:
+                    type: integer
+                    description: "вычисляемое: total_found_target_object / total_target_objects * 100"
+                  completed:
+                    type: boolean
+                    description: "true = локация впервые достигла 100% (`user_game_locations.completed`)"
+                  completion_title:
+                    type: string
+                    nullable: true
+                    description: "`game_locations.completion_title`; присутствует только при первом достижении 100%"
+                  completion_text:
+                    type: string
+                    nullable: true
+                    description: "`game_locations.completion_text`; присутствует только при первом достижении 100%"
+        "409": { description: Объект уже найден, или локация уже пройдена (новые находки запрещены) }
+  /v1/locations/{location_id}/progress:
+    get:
+      tags: [Locations]
+      summary: "(R2) Прогресс по локации"
+      parameters:
+        - { name: location_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Прогресс локации
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LocationProgress" }
+
+  /v1/regions/{region_id}/result:
+    get:
+      tags: [Regions]
+      summary: "(R1→R2) Финальный экран / список продуктов — упразднён"
+      deprecated: true
+      description: >
+        Список продуктов после прохождения берётся из `GET /v1/locations/{location_id}`
+        (`game_objects` + `is_favourite` / `is_in_cart`). Отдельный result-эндпоинт не нужен.
+      parameters:
+        - { name: region_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "410": { description: "Gone — используйте GET /v1/locations/{location_id}" }
+
+  /v1/regions/{region_id}/complete:
+    patch:
+      tags: [Regions]
+      summary: Отметить страну завершённой
+      parameters:
+        - { name: region_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+
+  /v1/regions/final/promo-code:
+    get:
+      tags: [Regions]
+      summary: "(R1→R2) Промокод финального экрана — упразднён"
+      deprecated: true
+      responses:
+        "410": { description: Gone — ресурс намеренно удалён (промокоды заменены бонусами) }
+
+  /v1/products:
+    get:
+      tags: [Products]
+      summary: Список продуктов
+      responses:
+        "200":
+          description: Продукты
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TargetProduct" }
+
+  /v1/user-actions:
+    post:
+      tags: [UserActions]
+      summary: Зафиксировать действие пользователя (избранное/корзина в игре)
+      description: >
+        Пишет лог в `user_actions` и делает UPSERT в `user_products`
+        (`is_favourite` / `is_in_cart` по `target_product_id`, резолвится из `game_objects`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserActionRequest" }
+      responses:
+        "200": { description: OK }
+
+  /tasks:
+    get:
+      tags: [Tasks (R2)]
+      summary: "(R2) Вкладка «Активные» — задания и группы"
+      description: >
+        UI-вкладка «Активные» (БЗ §3.4.1). Не отдаёт `conditions` и серверные поля.
+        Lazy-init `user_tasks` при первом запросе. При **каждом** GET для **available** auto-заданий
+        бэкенд прогоняет RuleEngine/order-exists; при успехе — `status=completed`.
+        При ошибке внешнего API (order-exists) статус **не меняется** — остаётся `available`.
+        Группы (`is_group=true`) и подзадания — **плоский список**; у подзаданий блок `group`.
+        **Видимость:** `is_active=true`, `now >= active_from`, и (`now < active_to` **или**
+        `status=completed` с незабранной наградой). После claim (`credited`) задание **не отдаётся**.
+        **Группы:** `active_from`/`active_to` = NULL → видимы, пока есть активное подзадание или группа в `completed`.
+        **Сортировка:** `completed` сверху; затем `available`/`in_progress` по `days_remaining` ↑,
+        `hours_remaining` ↑, `bonus` ↓. Статус `credited` в этот список **не входит**.
+        **`bonus_summary`:** `total`, `remaining`, `earned`. Группы — одним пакетом; `total = earned + remaining`.
+      responses:
+        "200":
+          description: Список активных заданий (без credited) + bonus_summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TasksListResponse" }
+        "401": { description: Unauthorized }
+
+  /tasks/{id}:
+    get:
+      tags: [Tasks (R2)]
+      summary: "(R2) Карточка задания (шторка) + прогресс группы"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Задание
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "404": { description: Задание не найдено, неактивно или вне окна показа }
+        "401": { description: Unauthorized }
+
+  /tasks/{id}/check:
+    post:
+      tags: [Tasks (R2)]
+      summary: "(R2) «Проверить» — только check-задания (`codeword`)"
+      description: >
+        **Класс check:** RuleEngine получает `input` из тела запроса и прогоняет через `tasks.conditions`
+        (эталон хранится как `{ "field": "input.value", "op": "=", "rhs": { "value": "слово" } }`).
+        При успехе: отдельное задание → `credited` + Redis job на set-bonus;
+        подзадание группы → `completed` (начисления нет).
+        Auto-задания (`order`, `condition`) этим методом **не проверяются** — см. GET /tasks и PATCH /claim.
+        Rate-limit: 3 попытки/мин. Внешние интеграции: 503 — статус не меняется.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskCheckRequest" }
+      responses:
+        "200":
+          description: Результат проверки
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskCheckResult" }
+        "422":
+          description: >
+            Условие не выполнено, неверный ввод, или задание не check-класса
+            (`error_code`: invalid_code, verification_class_mismatch, rate_limited, integration_error)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskCheckError" }
+        "503":
+          description: Внешняя интеграция временно недоступна — статус задания не меняется
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskCheckError" }
+        "404":
+          description: Задание не найдено или неактивно
+        "429":
+          description: Превышен rate-limit (3 попытки/мин)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskCheckError" }
+        "401": { description: Unauthorized }
+
+  /tasks/{id}/claim:
+    patch:
+      tags: [Tasks (R2)]
+      summary: "(R2) «Забрать награду» — auto-задания и группы"
+      description: >
+        Доступно при `user_tasks.status=completed`. Оптимистичный UX: сразу ставит `user_tasks.status=credited`,
+        создаёт `bonus_transactions` (с `awarded_at=NULL`), ставит Redis job на `set-bonus` с `idempotencyKey=bonus_transactions.id`.
+        **Auto-задание:** одна строка `bonus_transactions` на `tasks.prize_id`.
+        **Группа:** одна транзакция на приз родителя (`tasks.prize_id` у группы);
+        подзадания после выполнения бонусы сами не отдают — только когда все дети выполнены.
+        Повторный claim идемпотентен по `UNIQUE(user_id, task_id)`.
+        Check-задания этим методом **не используются** — начисление через POST /check.
+        (Детали контракта заданий ещё уточняются.)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Начисление поставлено в очередь (или уже credited)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskClaimResult" }
+        "409":
+          description: Статус не completed (ещё не выполнено или уже credited)
+        "404": { description: Задание не найдено или вне окна показа }
+        "401": { description: Unauthorized }
+
+
+  /bonuses/history:
+    get:
+      tags: [Bonuses (R2)]
+      summary: "(R2) Вкладка «Награды» — бонусы и (Этап 2) индивид. промокоды"
+      description: >
+        История начислений (БЗ: вкладка «Награды»). Источник — `bonus_transactions`
+        (Этап 2: + факты выдачи промокодов / статусы in_transit|valid|expired).
+        Не включает `available` и `completed` без claim.
+        Записи сохраняются после `active_to`. Сортировка: `created_at` DESC (новые сверху);
+        на UI группировка по дате. Подсказка про ЛК ЗЯ — статический текст на фронте.
+      responses:
+        "200":
+          description: Список наград (бонусы / промокоды)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BonusHistoryItem" }
+
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Opaque Bearer token (api-service). Хранится в Redis с TTL 7 дней, не JWT.
+
+  schemas:
+
+    Region:
+      type: object
+      properties:
+        region_id: { type: string, format: uuid, description: "`regions.id`" }
+        name: { type: string, description: "`regions.name`" }
+        is_available: { type: boolean, deprecated: true, description: "(R1) в R2 всегда true — все страны открыты; поле сохранено для совместимости" }
+        progress: { type: integer, description: "вычисляемое: found / total * 100 (в БД процента нет)" }
+        found: { type: integer, description: "(R2) `region_progresses.total_found_target_object`" }
+        total: { type: integer, description: "(R2) сумма `game_locations.total_target_objects` по стране" }
+        completed: { type: boolean, description: "(R2) `region_progresses.completed`" }
+        completed_on:
+          type: string
+          format: date-time
+          nullable: true
+          description: "(R2) `region_progresses.completed_on`"
+        is_final: { type: boolean, description: "`regions.is_final` (legacy R1)" }
+        locations:
+          type: array
+          description: "(R2) разбивка по локациям"
+          items: { $ref: "#/components/schemas/LocationCard" }
+
+    LocationCard:
+      type: object
+      properties:
+        location_id: { type: string, format: uuid, description: "`game_locations.id`" }
+        theme_title: { type: string, description: "`game_locations.theme_title`" }
+        preview_image: { type: string, description: "`game_locations.preview_image`" }
+        order_index: { type: integer, description: "`game_locations.order_index`" }
+        found: { type: integer, description: "`user_game_locations.total_found_target_object`" }
+        total: { type: integer, description: "`game_locations.total_target_objects`" }
+        completed:
+          type: boolean
+          description: "`user_game_locations.completed`; при true фронт сам блокирует изменения"
+
+    LocationProgress:
+      type: object
+      properties:
+        location_id: { type: string, format: uuid, description: "`game_locations.id`" }
+        total_target_objects: { type: integer, description: "`game_locations.total_target_objects`" }
+        total_found_target_object: { type: integer, description: "`user_game_locations.total_found_target_object`" }
+        progress: { type: integer, description: "вычисляемое: total_found_target_object / total_target_objects * 100" }
+        total_helps: { type: integer, description: "`game_locations.total_helps`" }
+        total_help_click: { type: integer, description: "`user_game_locations.total_help_click`" }
+        completed: { type: boolean, description: "`user_game_locations.completed`; при true фронт сам блокирует изменения" }
+
+    GameLocationData:
+      type: object
+      properties:
+        id: { type: string, format: uuid, description: "`game_locations.id`" }
+        name: { type: string, description: "`game_locations.name`" }
+        background: { type: string, nullable: true, description: "`game_locations.background`" }
+        total_target_objects: { type: integer, description: "`game_locations.total_target_objects`" }
+        total_help_click: { type: integer, description: "`user_game_locations.total_help_click` (использовано подсказок)" }
+        game_objects_found:
+          type: array
+          items: { type: string, format: uuid }
+          description: "ID найденных целевых объектов, порядок — по дате находки DESC"
+
+    GameObjectOnScene:
+      type: object
+      description: >
+        Объект на сцене. В админку заносятся только целевые объекты —
+        полей `is_object_target` / `untarget_product_description` в API нет.
+      properties:
+        id: { type: string, format: uuid, description: "`game_objects.id`" }
+        order_index: { type: integer, description: "`game_objects.order_index`" }
+        image: { type: string, nullable: true, description: "`game_objects.image`" }
+        target_product_id: { type: string, format: uuid, nullable: true, description: "`game_objects.target_product_id` → `target_products`" }
+        sku: { type: string, nullable: true, description: "`target_products.sku`" }
+        brand: { type: string, nullable: true, description: "`target_products.brand`" }
+        logo: { type: string, nullable: true, description: "`target_products.logo`" }
+        name: { type: string, nullable: true, description: "`target_products.name`" }
+        description: { type: string, nullable: true, description: "`target_products.description` (HTML)" }
+        link: { type: string, nullable: true, description: "`target_products.link`" }
+        is_target_object_found: { type: boolean, description: "`user_found_target_objects.found` (есть запись о находке)" }
+        is_favourite: { type: boolean, description: "`user_products.is_favourite`" }
+        is_in_cart: { type: boolean, description: "`user_products.is_in_cart`" }
+
+    GameLocationResource:
+      type: object
+      description: "Ответ GET /v1/locations/{location_id} — сцена + продукты (вместо бывшего /regions/{id}/result)"
+      properties:
+        completed:
+          type: boolean
+          description: "`user_game_locations.completed`; при true фронт сам блокирует изменения на сцене"
+        game_location: { $ref: "#/components/schemas/GameLocationData" }
+        game_objects:
+          type: array
+          items: { $ref: "#/components/schemas/GameObjectOnScene" }
+
+    ContentCard:
+      type: object
+      description: "Карточка «Традиции и ритуалы» (`tradition_cards`)"
+      properties:
+        id: { type: string, format: uuid, description: "`tradition_cards.id`" }
+        title: { type: string, description: "`tradition_cards.title`" }
+        image: { type: string, nullable: true, description: "`tradition_cards.image`" }
+        video: { type: string, nullable: true, description: "`tradition_cards.video`" }
+        description: { type: string, nullable: true, description: "`tradition_cards.description`" }
+        open_index: { type: integer, description: "`tradition_cards.open_index`" }
+
+    TargetProduct:
+      type: object
+      description: "Карточка продукта (`target_products`)"
+      properties:
+        target_product_id: { type: string, format: uuid, description: "`target_products.id`" }
+        brand: { type: string, description: "`target_products.brand`" }
+        logo: { type: string, nullable: true, description: "`target_products.logo`" }
+        name: { type: string, description: "`target_products.name`" }
+        description: { type: string, nullable: true, description: "`target_products.description`" }
+        image: { type: string, nullable: true, description: "`target_products.image`" }
+        link: { type: string, nullable: true, description: "`target_products.link`" }
+        sku: { type: string, description: "`target_products.sku`" }
+        is_favourite: { type: boolean, description: "`user_products.is_favourite`" }
+        is_in_cart: { type: boolean, description: "`user_products.is_in_cart`" }
+
+    TraditionDetail:
+      type: object
+      properties:
+        tradition_card: { $ref: "#/components/schemas/ContentCard" }
+        target_product:
+          type: array
+          items: { $ref: "#/components/schemas/TargetProduct" }
+
+
+    OnboardingCard:
+      type: object
+      properties:
+        id: { type: string, format: uuid, description: "`onboardings.id`" }
+        title: { type: string }
+        description: { type: string }
+        type: { type: string, enum: [onboarding, announcement], description: "`onboardings.type`" }
+
+    UserActionRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [add_to_favorite, add_to_cart]
+          description: "`user_actions.action`; также UPSERT `user_products.is_favourite` / `is_in_cart`"
+        game_object_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: "`game_objects.id`; через него резолвится `target_product_id` для `user_products`"
+
+    BonusSummary:
+      type: object
+      required: [total, remaining, earned]
+      description: >
+        Сводка бонусов для шапки экрана заданий. Вычисляется при GET /tasks по текущему набору
+        (те же задания, что в `tasks[]`). На бэке нет сущности «сезон».
+        Отдельные задания + группы (полный пакет); подзадания отдельно не суммируются.
+        Инвариант: total = earned + remaining.
+      properties:
+        total:
+          type: integer
+          description: >
+            Всего бонусов по текущему набору заданий (выполненные + невыполненные).
+            UI: «N бонусов в заданиях».
+        remaining:
+          type: integer
+          description: >
+            Ещё можно получить (total − earned).
+            UI: «Осталось N».
+        earned:
+          type: integer
+          description: >
+            Уже получил — сумма по заданиям/группам со статусом `credited`.
+            UI: «За сезон начислено N» (продуктовая подпись).
+
+    TasksListResponse:
+      type: object
+      required: [tasks, bonus_summary]
+      properties:
+        bonus_summary:
+          $ref: "#/components/schemas/BonusSummary"
+        tasks:
+          type: array
+          items: { $ref: "#/components/schemas/Task" }
+
+    Task:
+      type: object
+      required: [id, is_group, title, status, bonus]
+      description: >
+        Публичная карточка. Не отдаётся: `tasks.conditions`, `tasks.prize_id`, `tasks.is_active`.
+        Поля из `tasks.*` — как в ERD; `status` — из `user_tasks.status`;
+        `bonus` / `prize_type` — join `prizes`; вычисляемые поля помечены в описании.
+      properties:
+        id: { type: string, format: uuid, description: "`tasks.id`" }
+        is_group: { type: boolean, description: "`tasks.is_group`" }
+        type:
+          type: string
+          nullable: true
+          enum: [codeword, order, condition]
+          description: "`tasks.type`; null у группы"
+        icon:
+          type: string
+          nullable: true
+          description: "URL изображения из S3 (`tasks.icon`); менеджер загружает в админке"
+        title: { type: string, description: "`tasks.title`" }
+        short_description: { type: string, nullable: true, description: "`tasks.short_description`" }
+        description: { type: string, nullable: true, description: "`tasks.description`" }
+        steps:
+          type: array
+          nullable: true
+          items: { type: string }
+          description: "`tasks.steps` (json → string[])"
+        button_label: { type: string, nullable: true, description: "`tasks.button_label`" }
+        button_url: { type: string, nullable: true, description: "`tasks.button_url`" }
+        requires_input: { type: boolean, description: "`tasks.requires_input`" }
+        input_placeholder: { type: string, nullable: true, description: "`tasks.input_placeholder`" }
+        active_from: { type: string, format: date-time, nullable: true, description: "`tasks.active_from`" }
+        active_to: { type: string, format: date-time, nullable: true, description: "`tasks.active_to`" }
+        days_remaining:
+          type: integer
+          nullable: true
+          description: "вычисляемое: floor((active_to - now) / 1 day). NULL если active_to не задан"
+        hours_remaining:
+          type: integer
+          nullable: true
+          description: "вычисляемое: остаток часов (0–23) после полных дней. Чип «N д Nч»"
+        status:
+          type: string
+          enum: [available, completed, in_progress, credited]
+          description: >
+            `user_tasks.status`. `in_progress` — только группа (вычисляется при GET).
+            В `GET /tasks` ожидаются `available`/`completed`/`in_progress`;
+            `credited` — только во вкладке «Награды» (`/bonuses/history`).
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: "`user_tasks.completed_at`"
+        bonus:
+          type: integer
+          description: >
+            Отображаемая сумма. Обычное задание: `prizes.bonus`.
+            Группа: Σ `prizes.bonus` подзаданий + `prizes.bonus` группового приза.
+        prize_type:
+          type: string
+          nullable: true
+          enum: [bonus, promo]
+          description: "`prizes.prize_type`"
+        group_bonus:
+          type: integer
+          nullable: true
+          description: "только `is_group=true`: `prizes.bonus` приза родителя (`tasks.prize_id`); отдельного `prizes.is_group` нет"
+        sort_order:
+          type: integer
+          nullable: true
+          description: "только подзадание: `task_relations.sort_order`"
+        progress_done:
+          type: integer
+          nullable: true
+          description: "только группа: COUNT подзаданий с `user_tasks.status=completed`"
+        progress_total:
+          type: integer
+          nullable: true
+          description: "только группа: COUNT подзаданий в `task_relations`"
+        group:
+          type: object
+          nullable: true
+          description: "только подзадание"
+          required: [id, title]
+          properties:
+            id: { type: string, format: uuid, description: "`task_relations.parent_task_id`" }
+            title: { type: string, description: "`tasks.title` родителя" }
+
+    TaskCheckRequest:
+      type: object
+      properties:
+        input:
+          type: string
+          description: "тело POST /check; сравнивается с `input.value` в `tasks.conditions`"
+
+    TaskCheckResult:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [completed, credited]
+          description: >
+            Отдельное `codeword`: `credited`. Подзадание группы: `completed`.
+        amount:
+          type: integer
+          nullable: true
+          description: "`prizes.bonus`; только при отдельном codeword и `status=credited`"
+        group_progress_done:
+          type: integer
+          nullable: true
+          description: "подзадание группы: выполнено подзаданий"
+        group_all_completed:
+          type: boolean
+          nullable: true
+          description: "true → у группы `user_tasks.status=completed`, доступен claim"
+
+    TaskClaimResult:
+      type: object
+      required: [status, amount]
+      properties:
+        status:
+          type: string
+          enum: [completed, credited]
+          description: >
+            `credited` — транзакция создана и событие принято (начисление в фоне).
+            Остаётся `completed`, если claim ещё невозможен (409).
+        amount:
+          type: integer
+          description: "сумма `bonus_transactions` / отображаемый `bonus`"
+
+    TaskCheckError:
+      type: object
+      required: [error_code, message]
+      properties:
+        error_code:
+          type: string
+          enum: [invalid_code, verification_class_mismatch, rate_limited, integration_error]
+        message: { type: string, example: "Кодовое слово неверное" }
+
+
+    BonusHistoryItem:
+      type: object
+      required: [id, created_at, title, amount, kind]
+      description: >
+        Строка вкладки «Награды». Источник: `bonus_transactions` (оптимистичный UX —
+        запись при claim/check, `awarded_at` после подтверждения ЗЯ). Этап 2: расширяется
+        под индивид. промокоды (код, expiry, in_transit). Группа — одна строка на пакет.
+      properties:
+        id: { type: string, format: uuid, description: "`bonus_transactions.id`" }
+        created_at:
+          type: string
+          format: date-time
+          description: "момент записи транзакции (успешное начисление)"
+        title:
+          type: string
+          description: >
+            `tasks.title`; для группы бэкенд отдаёт `Группа «{title}»`
+        kind:
+          type: string
+          enum: [task, group]
+          description: "`group` если `tasks.is_group=true` у `bonus_transactions.task_id`"
+        task_id: { type: string, format: uuid, description: "`bonus_transactions.task_id`" }
+        amount:
+          type: integer
+          description: "числовое значение из `prizes.bonus` на момент начисления"
+        prize_type:
+          type: string
+          nullable: true
+          enum: [bonus, promo]
+          description: "(Этап 2) `prizes.prize_type` на момент начисления"
+        promo_code:
+          type: string
+          nullable: true
+          description: "(Этап 2) выданный индивид. промокод; null пока in_transit / для bonus"
+        promo_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: "(Этап 2) срок действия промокода"
+        delivery_status:
+          type: string
+          nullable: true
+          enum: [pending, in_transit, awarded, failed, expired]
+          description: "(Этап 2) статус доставки бонуса/промо (`bonus_transactions`)"
+
+
+    # --- Контракты интеграции с ЗЯ (не публичные ручки GOLD) ---
+
+    ZyOrderExistsCustomer:
+      type: object
+      properties:
+        customerId: { type: string, format: uuid }
+        phone: { type: string, example: "79000003597" }
+      description: "Обязателен хотя бы один из customerId / phone"
+
+    ZyOrderExistsOrderFilters:
+      type: object
+      required: [dateFrom]
+      properties:
+        dateFrom: { type: string, format: date-time }
+        dateTo: { type: string, format: date-time }
+        dateReceivedFrom: { type: string, format: date-time }
+        orderType: { type: string, enum: [online, retail] }
+        orderSumFrom: { type: integer }
+        totalSumFrom: { type: integer }
+        currency: { type: string, enum: [RUB, KZT, SAR, QAR, AED, BYN] }
+        ordersCount: { type: integer }
+        productsPerOrder: { type: integer }
+
+    ZyOrderExistsProductFilters:
+      type: object
+      properties:
+        productId: { type: array, items: { type: integer } }
+        categoryId: { type: array, items: { type: integer } }
+        brand: { type: string }
+        productsCount: { type: integer }
+
+    ZyOrderExistsRequest:
+      type: object
+      required: [customer, order]
+      properties:
+        customer: { $ref: "#/components/schemas/ZyOrderExistsCustomer" }
+        order: { $ref: "#/components/schemas/ZyOrderExistsOrderFilters" }
+        product: { $ref: "#/components/schemas/ZyOrderExistsProductFilters" }
+
+    ZyOrderExistsResponse:
+      type: object
+      required: [isFound, totalSum]
+      properties:
+        isFound: { type: boolean }
+        totalSum:
+          type: array
+          items: { type: number }
+
+    ZySetBonusRequest:
+      type: object
+      required: [eventKey, phone, amount]
+      properties:
+        eventKey:
+          type: string
+          example: GameTask
+          description: "`prizes.event_key`"
+        phone: { type: string, example: "79000003597" }
+        amount:
+          type: integer
+          description: "`prizes.bonus`"

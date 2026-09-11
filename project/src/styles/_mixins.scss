@@ -1,0 +1,217 @@
+@use 'sass:math';
+
+// Breakpoints
+$breakpoint-xs: 375px;
+$breakpoint-sm: 768px;
+$breakpoint-md: 1024px;
+$breakpoint-lg: 1440px;
+$breakpoint-xl: 1920px;
+
+// Миксины для медиа-запросов
+
+// Очень маленькие экраны (≤359px)
+@mixin mobile-xs {
+  @media (max-width: #{$breakpoint-xs - 1px}) {
+    @content;
+  }
+}
+
+// Маленькие мобильные устройства (375px-767px)
+@mixin mobile-sm {
+  @media (min-width: $breakpoint-xs) and (max-width: #{$breakpoint-sm - 1px}) {
+    @content;
+  }
+}
+
+// Планшеты (768px-1023px)
+@mixin tablet-sm {
+  @media (min-width: $breakpoint-sm) and (max-width: #{$breakpoint-md - 1px}) {
+    @content;
+  }
+}
+
+// Малые десктопы (1024px-1439px)
+@mixin desktop-sm {
+  @media (min-width: $breakpoint-md) and (max-width: #{$breakpoint-lg - 1px}) {
+    @content;
+  }
+}
+
+// Большие десктопы (1440px-1919px)
+@mixin desktop-lg {
+  @media (min-width: $breakpoint-lg) and (max-width: #{$breakpoint-xl - 1px}) {
+    @content;
+  }
+}
+
+@mixin mobile($width: $breakpoint-xs) {
+  @media (min-width: $width) {
+    @content;
+  }
+}
+
+@mixin tablet($width: $breakpoint-sm) {
+  @media (min-width: $width) {
+    @content;
+  }
+}
+
+@mixin desktop-xs($width: $breakpoint-md) {
+  @media (min-width: $width) {
+    @content;
+  }
+}
+
+@mixin desktop($width: $breakpoint-lg) {
+  @media (min-width: $width) {
+    @content;
+  }
+}
+
+@mixin large-desktop($width: $breakpoint-xl) {
+  @media (min-width: $width) {
+    @content;
+  }
+}
+
+/// Универсальный миксин для динамического изменения CSS-свойств с ограничением по min и max, основанный на ширине экрана
+/// @param {string} $property - CSS-свойство (например, width, height, font-size, scale)
+/// @param {number} $min-value - Значение при минимальной ширине экрана
+/// @param {number} $max-value - Значение при максимальной ширине экрана
+/// @param {number} $min-screen - Минимальная ширина экрана (в px)
+/// @param {number} $max-screen - Максимальная ширина экрана (в px)
+/// @param {string} $unit - Единица измерения: 'px' (по умолчанию) или '' для безразмерных свойств (scale, opacity и т.д.)
+@mixin dynit(
+  $property,
+  $min-value,
+  $max-value,
+  $min-screen,
+  $max-screen,
+  $unit: 'px'
+) {
+  $suffix: '';
+  $value-diff: $max-value - $min-value;
+  $screen-diff: $max-screen - $min-screen;
+
+  @if $unit != '' {
+    $suffix: #{$unit};
+  }
+
+  // Ниже min-screen — фиксированное значение
+  @media (max-width: #{$min-screen}px) {
+    #{$property}: #{$min-value}#{$suffix};
+  }
+
+  @if $unit == '' {
+    // Firefox does not reliably support typed arithmetic like (100vw - X) / 1px.
+    // Keep smooth interpolation for supporting engines and provide stepped fallback.
+    @media (min-width: #{$min-screen}px) and (max-width: #{$max-screen}px) {
+      #{$property}: #{$min-value};
+
+      @supports (opacity: calc(100vw / 1px)) {
+        $slope: math.div($value-diff, $screen-diff);
+
+        #{$property}: calc(
+          #{$min-value} + #{$slope} * (100vw - #{$min-screen}px) / 1px
+        );
+      }
+    }
+
+    @supports not (opacity: calc(100vw / 1px)) {
+      $fallback-steps: 20;
+
+      @for $step from 1 through $fallback-steps {
+        $bp: $min-screen + math.div($screen-diff * $step, $fallback-steps);
+        $value: $min-value + math.div($value-diff * $step, $fallback-steps);
+
+        @media (min-width: #{$bp}px) and (max-width: #{$max-screen}px) {
+          #{$property}: #{$value};
+        }
+      }
+    }
+  } @else {
+    // Между min-screen и max-screen — адаптивное значение
+    @media (min-width: #{$min-screen}px) and (max-width: #{$max-screen}px) {
+      $slope: math.div($value-diff, $screen-diff);
+
+      #{$property}: calc(
+        #{$min-value}#{$suffix} + #{$slope} * (100vw - #{$min-screen}px)
+      );
+    }
+  }
+
+  // Выше max-screen — фиксированное значение
+  @media (min-width: #{$max-screen}px) {
+    #{$property}: #{$max-value}#{$suffix};
+  }
+}
+
+/// Универсальный миксин для динамического изменения CSS-свойств с ограничением по min и max, основанный на высоте экрана
+/// @param {string} $property - CSS-свойство (например, padding-top, font-size)
+/// @param {number} $min-value - Значение при минимальной высоте экрана
+/// @param {number} $max-value - Значение при максимальной высоте экрана
+/// @param {number} $min-screen - Минимальная высота экрана (в px)
+/// @param {number} $max-screen - Максимальная высота экрана (в px)
+/// @param {string} $unit - Единица измерения: 'px' (по умолчанию) или '' для безразмерных свойств (scale, opacity и т.д.)
+@mixin dynit-vh(
+  $property,
+  $min-value,
+  $max-value,
+  $min-screen,
+  $max-screen,
+  $unit: 'px'
+) {
+  $suffix: '';
+  $value-diff: $max-value - $min-value;
+  $screen-diff: $max-screen - $min-screen;
+
+  @if $unit != '' {
+    $suffix: #{$unit};
+  }
+
+  // Ниже min-screen — фиксированное значение
+  @media (max-height: #{$min-screen}px) {
+    #{$property}: #{$min-value}#{$suffix};
+  }
+
+  @if $unit == '' {
+    @media (min-height: #{$min-screen}px) and (max-height: #{$max-screen}px) {
+      #{$property}: #{$min-value};
+
+      @supports (opacity: calc(100dvh / 1px)) {
+        $slope: math.div($value-diff, $screen-diff);
+
+        #{$property}: calc(
+          #{$min-value} + #{$slope} * (100dvh - #{$min-screen}px) / 1px
+        );
+      }
+    }
+
+    @supports not (opacity: calc(100dvh / 1px)) {
+      $fallback-steps: 20;
+
+      @for $step from 1 through $fallback-steps {
+        $bp: $min-screen + math.div($screen-diff * $step, $fallback-steps);
+        $value: $min-value + math.div($value-diff * $step, $fallback-steps);
+
+        @media (min-height: #{$bp}px) and (max-height: #{$max-screen}px) {
+          #{$property}: #{$value};
+        }
+      }
+    }
+  } @else {
+    // Между min-screen и max-screen — адаптивное значение
+    @media (min-height: #{$min-screen}px) and (max-height: #{$max-screen}px) {
+      $slope: math.div($value-diff, $screen-diff);
+
+      #{$property}: calc(
+        #{$min-value}#{$suffix} + #{$slope} * (100dvh - #{$min-screen}px)
+      );
+    }
+  }
+
+  // Выше max-screen — фиксированное значение
+  @media (min-height: #{$max-screen}px) {
+    #{$property}: #{$max-value}#{$suffix};
+  }
+}
